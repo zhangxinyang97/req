@@ -105,6 +105,11 @@ func BodyXML(v interface{}) *bodyXml {
 	return &bodyXml{v: v}
 }
 
+type (
+	// RequestMiddleware type is for request middleware, called before a request is sent
+	RequestMiddleware func(client *http.Client, req *Req, url string) error
+)
+
 // Req is a convenient client for initiating requests
 type Req struct {
 	client           *http.Client
@@ -112,6 +117,7 @@ type Req struct {
 	xmlEncOpts       *xmlEncOpts
 	flag             int
 	progressInterval time.Duration
+	udBeforeRequest  []RequestMiddleware
 }
 
 // New create a new *Req
@@ -156,12 +162,19 @@ func (p *param) Empty() bool {
 	return p.Values == nil
 }
 
+// OnBeforeRequest add a request middleware which hooks before request sent.
+func (r *Req) OnBeforeRequest(m RequestMiddleware) *Req {
+	r.udBeforeRequest = append(r.udBeforeRequest, m)
+	return r
+}
+
 // Do execute a http request with sepecify method and url,
 // and it can also have some optional params, depending on your needs.
 func (r *Req) Do(method, rawurl string, vs ...interface{}) (resp *Resp, err error) {
 	if rawurl == "" {
 		return nil, errors.New("req: url not specified")
 	}
+	originRawURL := rawurl
 	req := &http.Request{
 		Method:     method,
 		Header:     make(http.Header),
@@ -311,6 +324,12 @@ func (r *Req) Do(method, rawurl string, vs ...interface{}) (resp *Resp, err erro
 
 	if resp.client == nil {
 		resp.client = r.Client()
+	}
+
+	for _, f := range r.udBeforeRequest {
+		if err = f(r.client, r, originRawURL); err != nil {
+			return nil, fmt.Errorf("before request middleware err,%v",err)
+		}
 	}
 
 	var response *http.Response
