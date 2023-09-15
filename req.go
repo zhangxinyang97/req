@@ -328,7 +328,7 @@ func (r *Req) Do(method, rawurl string, vs ...interface{}) (resp *Resp, err erro
 
 	for _, f := range r.udBeforeRequest {
 		if err = f(r.client, r, originRawURL); err != nil {
-			return nil, fmt.Errorf("before request middleware err,%v",err)
+			return resp, fmt.Errorf("before request middleware err, %v", err)
 		}
 	}
 
